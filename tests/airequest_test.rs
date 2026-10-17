@@ -17,7 +17,9 @@ fn client(url: &str, key: &str) -> AIRequest {
 }
 
 fn read_request(stream: &mut TcpStream) -> (String, Value) {
-    stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    stream
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
     let mut bytes = Vec::new();
     let header_end = loop {
         let mut buf = [0u8; 4096];
@@ -48,9 +50,15 @@ fn read_request(stream: &mut TcpStream) -> (String, Value) {
     (headers, body)
 }
 
-fn mock_server(status: &'static str, body: &'static str) -> (String, thread::JoinHandle<(String, Value)>) {
+fn mock_server(
+    status: &'static str,
+    body: &'static str,
+) -> (String, thread::JoinHandle<(String, Value)>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let url = format!("http://{}/v1/chat/completions", listener.local_addr().unwrap());
+    let url = format!(
+        "http://{}/v1/chat/completions",
+        listener.local_addr().unwrap()
+    );
     let handle = thread::spawn(move || {
         let (mut stream, _) = listener.accept().unwrap();
         let request = read_request(&mut stream);
@@ -68,23 +76,39 @@ fn mock_server(status: &'static str, body: &'static str) -> (String, thread::Joi
 fn posts_expected_payload_and_authorization() {
     let (url, server) = mock_server("200 OK", r#"{"choices":[{"message":{"content":"ok"}}]}"#);
     let result = client(&url, "secret").request(MESSAGES);
-    assert!(matches!(result, AIRequestResult::Ok(ref value) if value["choices"][0]["message"]["content"] == "ok"));
+    assert!(
+        matches!(result, AIRequestResult::Ok(ref value) if value["choices"][0]["message"]["content"] == "ok")
+    );
     let (headers, payload) = server.join().unwrap();
     assert!(headers.starts_with("POST /v1/chat/completions HTTP/1.1"));
-    assert!(headers.to_ascii_lowercase().contains("content-type: application/json"));
-    assert!(headers.to_ascii_lowercase().contains("authorization: bearer secret"));
-    assert_eq!(payload, json!({
-        "model": "test-model",
-        "messages": [{"role":"user","content":"hello"}],
-        "max_tokens": 123,
-        "temperature": 0.25
-    }));
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("content-type: application/json")
+    );
+    assert!(
+        headers
+            .to_ascii_lowercase()
+            .contains("authorization: bearer secret")
+    );
+    assert_eq!(
+        payload,
+        json!({
+            "model": "test-model",
+            "messages": [{"role":"user","content":"hello"}],
+            "max_tokens": 123,
+            "temperature": 0.25
+        })
+    );
 }
 
 #[test]
 fn omits_authorization_and_grammar_by_default() {
     let (url, server) = mock_server("200 OK", "{}");
-    assert!(matches!(client(&url, "").request(MESSAGES), AIRequestResult::Ok(_)));
+    assert!(matches!(
+        client(&url, "").request(MESSAGES),
+        AIRequestResult::Ok(_)
+    ));
     let (headers, payload) = server.join().unwrap();
     assert!(!headers.to_ascii_lowercase().contains("authorization:"));
     assert!(payload.get("grammar").is_none());
@@ -93,7 +117,9 @@ fn omits_authorization_and_grammar_by_default() {
 #[test]
 fn includes_optional_grammar() {
     let (url, server) = mock_server("200 OK", "{}");
-    let result = client(&url, "").with_grammar("root ::= \"ok\"").request(MESSAGES);
+    let result = client(&url, "")
+        .with_grammar("root ::= \"ok\"")
+        .request(MESSAGES);
     assert!(matches!(result, AIRequestResult::Ok(_)));
     let (_, payload) = server.join().unwrap();
     assert_eq!(payload["grammar"], "root ::= \"ok\"");
@@ -127,14 +153,20 @@ fn reports_json_error_field() {
 #[test]
 fn reports_invalid_response_json() {
     let (url, server) = mock_server("200 OK", "not json");
-    assert!(matches!(client(&url, "").request(MESSAGES), AIRequestResult::DecodeFailed(_, _)));
+    assert!(matches!(
+        client(&url, "").request(MESSAGES),
+        AIRequestResult::DecodeFailed(_, _)
+    ));
     server.join().unwrap();
 }
 
 #[test]
 fn reports_http_error() {
     let (url, server) = mock_server("503 Service Unavailable", r#"{"error":"busy"}"#);
-    assert!(matches!(client(&url, "").request(MESSAGES), AIRequestResult::RequestFailed(_, _)));
+    assert!(matches!(
+        client(&url, "").request(MESSAGES),
+        AIRequestResult::RequestFailed(_, _)
+    ));
     server.join().unwrap();
 }
 

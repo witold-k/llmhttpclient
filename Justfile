@@ -10,6 +10,7 @@ build:
 	cargo build
 	RUST_BACKTRACE=1 cargo test
 	cargo clippy
+	cargo fmt --check
 
 build-jvm:
     RUSTFLAGS="-C panic=unwind" cargo jvm build --bin aifix --no-default-features
@@ -58,7 +59,7 @@ test-jvm:
     java -cp $HOME/.local/share/cargo-jvm/rustc_codegen_jvm/runtime/build/libs/runtime-0.1.0.jar:{{target_dir}}/jvm-unknown-jvm/debug/collect_to_md.jar aifix.aifix
 
 clean:
-	rm Cargo.lock
+	@rm -f Cargo.lock
 	@cargo clean -p {{module_name}}
 
 clean-all:
